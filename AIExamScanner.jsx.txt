@@ -1,0 +1,1254 @@
+import { useState, useRef, useEffect, useCallback } from "react";
+
+/* ═══════════════════════════════════════════════════════════════
+   GLOBAL STYLES
+═══════════════════════════════════════════════════════════════ */
+const GLOBAL_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #050810;
+    --surface: rgba(255,255,255,0.04);
+    --surface2: rgba(255,255,255,0.07);
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --accent: #00e5a0;
+    --accent2: #00c4ff;
+    --accent3: #a3ff5a;
+    --danger: #ff4d6a;
+    --warn: #ffb830;
+    --text: #f0f4ff;
+    --muted: rgba(240,244,255,0.45);
+    --dim: rgba(240,244,255,0.2);
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  html, body, #root { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-display); }
+
+  ::-webkit-scrollbar { width: 3px; background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,229,160,0.2); border-radius: 2px; }
+
+  /* ── Animations ── */
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(18px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(0,229,160,0.35); }
+    50%      { box-shadow: 0 0 0 8px rgba(0,229,160,0); }
+  }
+  @keyframes scanLine {
+    0%   { top: 8%; }
+    50%  { top: 88%; }
+    100% { top: 8%; }
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes shimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+  @keyframes ringFill {
+    from { stroke-dashoffset: 283; }
+  }
+  @keyframes countUp {
+    from { opacity:0; transform:scale(0.7); }
+    to   { opacity:1; transform:scale(1); }
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .anim-fade-up  { animation: fadeUp .45s cubic-bezier(.22,.68,0,1.2) both; }
+  .anim-fade-in  { animation: fadeIn .3s ease both; }
+  .spin          { animation: spin .9s linear infinite; }
+  .blink         { animation: blink 1.4s ease infinite; }
+
+  .stagger-1  { animation-delay: .05s; }
+  .stagger-2  { animation-delay: .10s; }
+  .stagger-3  { animation-delay: .15s; }
+  .stagger-4  { animation-delay: .20s; }
+  .stagger-5  { animation-delay: .25s; }
+
+  /* ── Glass card ── */
+  .glass {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    backdrop-filter: blur(12px);
+  }
+  .glass-2 {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+  }
+
+  /* ── Neon button ── */
+  .btn-neon {
+    background: linear-gradient(135deg, #00e5a0, #00c4ff);
+    color: #050810;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: .02em;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: opacity .15s, transform .15s;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-neon::after {
+    content:'';
+    position:absolute; inset:0;
+    background: linear-gradient(135deg,rgba(255,255,255,.2),transparent);
+    border-radius:inherit;
+  }
+  .btn-neon:hover { opacity:.9; transform:translateY(-1px); }
+  .btn-neon:active { transform:translateY(0); }
+  .btn-neon:disabled { opacity:.35; cursor:not-allowed; transform:none; }
+
+  /* ── Ghost button ── */
+  .btn-ghost {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 13px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .btn-ghost:hover { background:var(--surface2); color:var(--text); border-color:rgba(255,255,255,.25); }
+
+  /* ── Tab ── */
+  .tab-item {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 13px;
+    border-radius: 10px;
+    padding: 7px 14px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all .2s;
+    white-space: nowrap;
+    color: var(--dim);
+    background: transparent;
+  }
+  .tab-item:hover { color: var(--muted); background: var(--surface); }
+  .tab-item.active {
+    background: rgba(0,229,160,.12);
+    border-color: rgba(0,229,160,.3);
+    color: var(--accent);
+  }
+
+  /* ── Toggle ── */
+  .toggle-wrap {
+    display:flex; background:rgba(255,255,255,.04); border:1px solid var(--border);
+    border-radius:12px; padding:3px; gap:3px;
+  }
+  .toggle-item {
+    flex:1; padding:8px 0; border:none; background:transparent;
+    color:var(--dim); font-family:var(--font-display); font-weight:600; font-size:13px;
+    border-radius:9px; cursor:pointer; transition:all .2s;
+  }
+  .toggle-item.on {
+    background:rgba(0,229,160,.15);
+    color:var(--accent);
+    box-shadow: 0 0 16px rgba(0,229,160,.15);
+  }
+
+  /* ── Answer bubble ── */
+  .ans-btn {
+    width:28px; height:28px; border-radius:50%; border:1.5px solid rgba(255,255,255,.12);
+    background:transparent; color:var(--dim); font-family:var(--font-mono);
+    font-size:11px; font-weight:600; cursor:pointer; transition:all .15s;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .ans-btn.chosen {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #050810;
+    box-shadow: 0 0 10px rgba(0,229,160,.5);
+  }
+  .ans-btn:not(.chosen):hover { border-color:rgba(255,255,255,.3); color:var(--muted); }
+
+  /* ── Input ── */
+  .field {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: var(--font-display);
+    font-size: 14px;
+    padding: 11px 14px;
+    width: 100%;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .field:focus { border-color: rgba(0,229,160,.5); }
+  .field::placeholder { color: var(--dim); }
+  textarea.field { resize: vertical; min-height: 80px; font-size:13px; }
+
+  /* ── Score colors ── */
+  .score-s  { color: var(--accent); }
+  .score-a  { color: var(--accent3); }
+  .score-b  { color: var(--warn); }
+  .score-c  { color: #ff8c42; }
+  .score-d  { color: var(--danger); }
+`;
+
+/* ═══════════════════════════════════════════════════════════════
+   CONSTANTS & HELPERS
+═══════════════════════════════════════════════════════════════ */
+const CHOICES = ["A","B","C","D","E"];
+
+const SAMPLE_DATA = [
+  { id:1, name:"Andi Saputra",   score:92, correct:23, wrong:2, empty:0, date:"08 Jun" },
+  { id:2, name:"Budi Santoso",   score:76, correct:19, wrong:5, empty:1, date:"08 Jun" },
+  { id:3, name:"Citra Dewi",     score:88, correct:22, wrong:3, empty:0, date:"07 Jun" },
+  { id:4, name:"Dina Rahayu",    score:64, correct:16, wrong:9, empty:0, date:"07 Jun" },
+  { id:5, name:"Eko Prasetyo",   score:96, correct:24, wrong:1, empty:0, date:"06 Jun" },
+  { id:6, name:"Fitri Handayani",score:80, correct:20, wrong:5, empty:0, date:"06 Jun" },
+];
+
+function toB64(file) {
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result.split(",")[1]);
+    r.onerror=()=>rej(new Error("read fail"));
+    r.readAsDataURL(file);
+  });
+}
+
+function scoreColor(s){
+  if(s>=90) return "score-s";
+  if(s>=80) return "score-a";
+  if(s>=70) return "score-b";
+  if(s>=60) return "score-c";
+  return "score-d";
+}
+
+function scoreLetter(s){
+  if(s>=90) return "A+";
+  if(s>=80) return "A";
+  if(s>=70) return "B";
+  if(s>=60) return "C";
+  return "D";
+}
+
+function calcScore(detected={}, key={}) {
+  let correct=0,wrong=0,empty=0;
+  const details={};
+  Object.entries(key).forEach(([n,k])=>{
+    const g=detected[n];
+    if(!g||g==="-"){ empty++; details[n]={status:"empty",key:k,given:"-"}; }
+    else if(g===k){ correct++; details[n]={status:"correct",key:k,given:g}; }
+    else { wrong++; details[n]={status:"wrong",key:k,given:g}; }
+  });
+  const total=Object.keys(key).length||1;
+  return { correct, wrong, empty, total, score:Math.round((correct/total)*100), details };
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CLAUDE API
+═══════════════════════════════════════════════════════════════ */
+async function callClaude({ b64, mt, answerKey, mode, rubric }) {
+  let prompt = "";
+
+  if(mode==="omr") {
+    prompt = `Kamu adalah sistem OMR otomatis yang sangat akurat.
+Analisis gambar lembar jawaban ini dengan teliti.
+
+KUNCI JAWABAN: ${Object.entries(answerKey).map(([k,v])=>`No.${k}=${v}`).join(", ")}
+
+Deteksi setiap bulatan yang diarsir/dihitamkan oleh siswa.
+Jika tidak ada jawaban → tandai kosong.
+Jika lebih dari satu jawaban dalam satu nomor → tandai sebagai ganda (ambil yang paling gelap).
+
+Kembalikan HANYA JSON ini, tanpa markdown, tanpa penjelasan:
+{
+  "detectedAnswers": {"1":"A","2":"C",...},
+  "emptyNumbers": [],
+  "doubleAnswers": [],
+  "totalDetected": 20,
+  "imageQuality": "baik",
+  "confidence": 0.96
+}`;
+  } else {
+    prompt = `Kamu adalah penilai esai otomatis yang cerdas dan presisi.
+Baca teks dalam gambar ini (tulisan tangan atau ketikan).
+
+RUBRIK: ${rubric||"Nilai berdasarkan kelengkapan, kedalaman analisis, dan ketepatan."}
+
+Kembalikan HANYA JSON ini, tanpa markdown, tanpa penjelasan:
+{
+  "extractedText": "teks yang kamu baca...",
+  "score": 85,
+  "maxScore": 100,
+  "grade": "B",
+  "feedback": "Penjelasan detail untuk siswa, minimal 2 kalimat.",
+  "criteria": [
+    {"name":"Kelengkapan","score":28,"max":35,"comment":"..."},
+    {"name":"Kedalaman","score":32,"max":40,"comment":"..."},
+    {"name":"Ketepatan","score":25,"max":25,"comment":"..."}
+  ],
+  "strengths": ["kelebihan 1","kelebihan 2"],
+  "improvements": ["saran 1","saran 2"]
+}`;
+  }
+
+  const res = await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:"claude-sonnet-4-20250514",
+      max_tokens:1000,
+      messages:[{
+        role:"user",
+        content:[
+          {type:"image",source:{type:"base64",media_type:mt,data:b64}},
+          {type:"text",text:prompt}
+        ]
+      }]
+    })
+  });
+
+  const data = await res.json();
+  const text = data.content?.map(i=>i.text||"").join("")||"{}";
+  try { return JSON.parse(text.replace(/```json|```/g,"").trim()); }
+  catch { return {error:"parse",raw:text}; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SUBCOMPONENTS
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Background Grid ── */
+function BgGrid() {
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:0,overflow:"hidden",pointerEvents:"none"}}>
+      {/* Gradient orbs */}
+      <div style={{position:"absolute",top:"-15%",left:"50%",transform:"translateX(-50%)",
+        width:600,height:400,background:"radial-gradient(ellipse,rgba(0,229,160,.08) 0%,transparent 70%)"}}/>
+      <div style={{position:"absolute",bottom:"10%",right:"-10%",
+        width:400,height:400,background:"radial-gradient(ellipse,rgba(0,196,255,.05) 0%,transparent 70%)"}}/>
+      {/* Grid */}
+      <svg width="100%" height="100%" style={{opacity:.04}}>
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth=".6"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)"/>
+      </svg>
+    </div>
+  );
+}
+
+/* ── Header ── */
+function Header({ active, setActive }) {
+  const tabs = [
+    {label:"Scanner",  icon:"◉"},
+    {label:"Kunci",    icon:"✦"},
+    {label:"Hasil",    icon:"◈"},
+    {label:"Dashboard",icon:"▦"},
+  ];
+  return (
+    <header style={{
+      position:"sticky",top:0,zIndex:100,
+      background:"rgba(5,8,16,.85)",
+      backdropFilter:"blur(20px)",
+      borderBottom:"1px solid rgba(255,255,255,.07)",
+    }}>
+      <div style={{maxWidth:680,margin:"0 auto",padding:"0 16px"}}>
+        {/* Brand */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+          padding:"14px 0 12px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{
+              width:36,height:36,borderRadius:10,
+              background:"linear-gradient(135deg,#00e5a0,#00c4ff)",
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:16,fontWeight:800,color:"#050810",fontFamily:"var(--font-display)",
+              boxShadow:"0 0 20px rgba(0,229,160,.3)",
+            }}>AI</div>
+            <div>
+              <div style={{fontFamily:"var(--font-display)",fontWeight:800,fontSize:16,
+                letterSpacing:"-.02em",lineHeight:1}}>
+                Exam Scanner
+              </div>
+              <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--dim)",
+                letterSpacing:".08em",marginTop:2}}>
+                KOREKSI UJIAN OTOMATIS
+              </div>
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{
+              width:7,height:7,borderRadius:"50%",
+              background:"var(--accent)",
+              boxShadow:"0 0 0 3px rgba(0,229,160,.2)",
+              display:"inline-block",
+              animation:"pulse 2s ease infinite",
+            }}/>
+            <span style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--accent)"}}>
+              LIVE
+            </span>
+          </div>
+        </div>
+        {/* Tabs */}
+        <div style={{display:"flex",gap:4,paddingBottom:10,overflowX:"auto"}}>
+          {tabs.map((t,i)=>(
+            <button key={t.label} className={`tab-item ${active===i?"active":""}`}
+              onClick={()=>setActive(i)}>
+              <span style={{marginRight:5,fontSize:10}}>{t.icon}</span>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* ── Camera View ── */
+function CameraView({ onCapture }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const [live, setLive]     = useState(false);
+  const [err, setErr]       = useState("");
+  const [photo, setPhoto]   = useState(null);
+  const [scanning, setScanning] = useState(false);
+
+  const start = async () => {
+    setErr(""); setPhoto(null);
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}
+      });
+      streamRef.current = s;
+      if(videoRef.current){ videoRef.current.srcObject=s; videoRef.current.play(); }
+      setLive(true);
+    } catch(e) {
+      setErr("Izin kamera ditolak atau kamera tidak tersedia.");
+    }
+  };
+
+  const stop = () => {
+    streamRef.current?.getTracks().forEach(t=>t.stop());
+    setLive(false);
+  };
+
+  const capture = () => {
+    const v=videoRef.current, c=canvasRef.current;
+    if(!v||!c) return;
+    c.width=v.videoWidth; c.height=v.videoHeight;
+    c.getContext("2d").drawImage(v,0,0);
+    const dataUrl=c.toDataURL("image/jpeg",.93);
+    setPhoto(dataUrl);
+    stop();
+    onCapture({b64:dataUrl.split(",")[1], mt:"image/jpeg", preview:dataUrl});
+  };
+
+  useEffect(()=>()=>streamRef.current?.getTracks().forEach(t=>t.stop()),[]);
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {!live && !photo && (
+        <button className="btn-neon" onClick={start}
+          style={{padding:"16px 24px",width:"100%",fontSize:16,
+            boxShadow:"0 0 32px rgba(0,229,160,.25)"}}>
+          <span style={{marginRight:10,fontSize:20}}>📷</span>
+          Aktifkan Kamera
+        </button>
+      )}
+
+      {live && (
+        <div style={{position:"relative",borderRadius:20,overflow:"hidden",
+          border:"1px solid rgba(0,229,160,.2)",background:"#000"}}>
+          <video ref={videoRef} autoPlay playsInline muted
+            style={{width:"100%",display:"block",maxHeight:360,objectFit:"cover"}}/>
+
+          {/* Overlay frame */}
+          <div style={{position:"absolute",inset:0,display:"flex",
+            alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+            {/* Dimmed area around frame */}
+            <div style={{position:"absolute",inset:0,
+              background:"rgba(5,8,16,.4)"}}/>
+
+            {/* Transparent scan window */}
+            <div style={{
+              position:"relative",
+              width:"78%",height:"82%",
+              border:"2px solid rgba(0,229,160,.7)",
+              borderRadius:12,
+              background:"transparent",
+              boxShadow:"0 0 0 9999px rgba(5,8,16,.5), inset 0 0 30px rgba(0,229,160,.05)",
+            }}>
+              {/* Corner brackets */}
+              {[[0,0],[0,1],[1,0],[1,1]].map(([r,c],i)=>(
+                <div key={i} style={{
+                  position:"absolute",
+                  top:r?undefined:"-2px", bottom:r?"-2px":undefined,
+                  left:c?undefined:"-2px", right:c?"-2px":undefined,
+                  width:22,height:22,
+                  borderTop: !r?"3px solid #00e5a0":undefined,
+                  borderBottom: r?"3px solid #00e5a0":undefined,
+                  borderLeft: !c?"3px solid #00e5a0":undefined,
+                  borderRight: c?"3px solid #00e5a0":undefined,
+                }}/>
+              ))}
+              {/* Scan line */}
+              <div style={{
+                position:"absolute",left:4,right:4,height:2,
+                background:"linear-gradient(90deg,transparent,rgba(0,229,160,.8),transparent)",
+                borderRadius:2,
+                animation:"scanLine 2.5s ease-in-out infinite",
+              }}/>
+            </div>
+            <p style={{
+              position:"absolute",bottom:16,
+              fontFamily:"var(--font-mono)",fontSize:11,
+              color:"var(--accent)",
+              background:"rgba(5,8,16,.7)",
+              padding:"5px 14px",borderRadius:20,
+              border:"1px solid rgba(0,229,160,.2)",
+            }}>
+              Arahkan ke lembar jawaban
+            </p>
+          </div>
+
+          <canvas ref={canvasRef} style={{display:"none"}}/>
+
+          {/* Controls */}
+          <div style={{
+            position:"absolute",bottom:12,left:0,right:0,
+            display:"flex",justifyContent:"center",gap:10,
+          }}>
+            <button className="btn-neon" onClick={capture}
+              style={{padding:"11px 28px",borderRadius:30,fontSize:14,
+                boxShadow:"0 0 20px rgba(0,229,160,.3)"}}>
+              📸 Ambil
+            </button>
+            <button className="btn-ghost" onClick={stop}
+              style={{padding:"11px 20px",borderRadius:30}}>
+              ✕ Tutup
+            </button>
+          </div>
+        </div>
+      )}
+
+      {photo && (
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{position:"relative",borderRadius:16,overflow:"hidden",
+            border:"1px solid rgba(0,229,160,.25)"}}>
+            <img src={photo} style={{width:"100%",maxHeight:300,objectFit:"contain",
+              background:"#000",display:"block"}} alt="captured"/>
+            <div style={{position:"absolute",top:10,right:10,
+              background:"rgba(0,229,160,.15)",border:"1px solid rgba(0,229,160,.4)",
+              borderRadius:20,padding:"4px 10px",
+              fontFamily:"var(--font-mono)",fontSize:11,color:"var(--accent)"}}>
+              ✓ SIAP
+            </div>
+          </div>
+          <button className="btn-ghost" onClick={()=>{setPhoto(null);start();}}
+            style={{padding:"10px",borderRadius:12,width:"100%",textAlign:"center"}}>
+            🔄 Ambil Ulang
+          </button>
+        </div>
+      )}
+
+      {err && (
+        <div style={{padding:"12px 16px",borderRadius:12,
+          background:"rgba(255,77,106,.08)",border:"1px solid rgba(255,77,106,.2)",
+          fontFamily:"var(--font-mono)",fontSize:12,color:"var(--danger)"}}>
+          ⚠ {err}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── File Upload ── */
+function FileUpload({ onUpload }) {
+  const [drag,setDrag]=useState(false);
+  const [preview,setPreview]=useState(null);
+  const [fname,setFname]=useState("");
+  const ref=useRef(null);
+
+  const handle=async(file)=>{
+    if(!file) return;
+    const ok=["image/jpeg","image/jpg","image/png","application/pdf"];
+    if(!ok.includes(file.type)){alert("Gunakan JPG, PNG, atau PDF.");return;}
+    const b64=await toB64(file);
+    const mt=file.type==="application/pdf"?"application/pdf":"image/jpeg";
+    const prev=file.type!=="application/pdf"?URL.createObjectURL(file):null;
+    setPreview(prev); setFname(file.name);
+    onUpload({b64,mt,preview:prev,fileName:file.name});
+  };
+
+  return (
+    <div
+      onClick={()=>ref.current?.click()}
+      onDragOver={e=>{e.preventDefault();setDrag(true);}}
+      onDragLeave={()=>setDrag(false)}
+      onDrop={e=>{e.preventDefault();setDrag(false);handle(e.dataTransfer.files[0]);}}
+      style={{
+        borderRadius:20,border:`2px dashed ${drag?"rgba(0,229,160,.6)":"rgba(255,255,255,.12)"}`,
+        background: drag?"rgba(0,229,160,.05)":"var(--surface)",
+        padding:preview?"12px":"36px 20px",
+        textAlign:"center",cursor:"pointer",transition:"all .2s",
+        minHeight:preview?0:160,display:"flex",flexDirection:"column",
+        alignItems:"center",justifyContent:"center",gap:10,
+      }}>
+      <input ref={ref} type="file" accept=".jpg,.jpeg,.png,.pdf"
+        style={{display:"none"}} onChange={e=>handle(e.target.files[0])}/>
+      {preview ? (
+        <>
+          <img src={preview} style={{maxHeight:240,width:"100%",objectFit:"contain",
+            borderRadius:12,background:"#000"}} alt="preview"/>
+          <div style={{fontFamily:"var(--font-mono)",fontSize:11,color:"var(--muted)"}}>
+            📄 {fname}
+          </div>
+        </>
+      ):(
+        <>
+          <div style={{fontSize:40,lineHeight:1}}>⬆</div>
+          <div style={{fontFamily:"var(--font-display)",fontWeight:600,fontSize:15,
+            color:"var(--muted)"}}>
+            Drag & drop atau klik untuk upload
+          </div>
+          <div style={{fontFamily:"var(--font-mono)",fontSize:11,color:"var(--dim)"}}>
+            JPG · PNG · PDF
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Score Donut ── */
+function ScoreDonut({ score, size=140 }) {
+  const r=52, circ=2*Math.PI*r;
+  const dash=(score/100)*circ;
+  const color = score>=90?"#00e5a0":score>=80?"#a3ff5a":score>=70?"#ffb830":score>=60?"#ff8c42":"#ff4d6a";
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" style={{display:"block"}}>
+      {/* Track */}
+      <circle cx="60" cy="60" r={r} fill="none"
+        stroke="rgba(255,255,255,.06)" strokeWidth="10"/>
+      {/* Fill */}
+      <circle cx="60" cy="60" r={r} fill="none"
+        stroke={color} strokeWidth="10"
+        strokeLinecap="round"
+        strokeDasharray={`${dash} ${circ}`}
+        transform="rotate(-90 60 60)"
+        style={{
+          filter:`drop-shadow(0 0 8px ${color})`,
+          animation:"ringFill .9s ease both",
+          strokeDashoffset:0,
+        }}/>
+      {/* Score text */}
+      <text x="60" y="56" textAnchor="middle" fill="white"
+        style={{fontFamily:"var(--font-mono)",fontSize:22,fontWeight:700}}>
+        {score}
+      </text>
+      <text x="60" y="70" textAnchor="middle" fill="rgba(255,255,255,.35)"
+        style={{fontFamily:"var(--font-mono)",fontSize:10}}>
+        /100
+      </text>
+    </svg>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PAGES
+═══════════════════════════════════════════════════════════════ */
+
+/* ── PAGE: SCANNER ── */
+function PageScanner({ answerKey, onResult }) {
+  const [mode,setMode]=useState("omr");
+  const [inputType,setInputType]=useState("camera");
+  const [image,setImage]=useState(null);
+  const [rubric,setRubric]=useState("Nilai berdasarkan kelengkapan, kedalaman analisis, ketepatan, dan tata bahasa yang digunakan.");
+  const [processing,setProcessing]=useState(false);
+  const [err,setErr]=useState("");
+
+  const analyze = async()=>{
+    if(!image){setErr("Belum ada gambar.");return;}
+    if(mode==="omr"&&Object.keys(answerKey).length===0){
+      setErr("Kunci jawaban belum diisi. Buka tab Kunci terlebih dahulu.");return;
+    }
+    setProcessing(true);setErr("");
+    try{
+      const raw=await callClaude({b64:image.b64,mt:image.mt,answerKey,mode,rubric});
+      if(raw.error){setErr("AI gagal membaca: "+raw.raw?.slice(0,100));setProcessing(false);return;}
+      if(mode==="omr"){
+        const scored=calcScore(raw.detectedAnswers||{},answerKey);
+        onResult({...scored,type:"omr",confidence:raw.confidence,imageQuality:raw.imageQuality,
+          emptyNumbers:raw.emptyNumbers,doubleAnswers:raw.doubleAnswers});
+      } else {
+        onResult({
+          type:"essay",score:raw.score||0,maxScore:raw.maxScore||100,
+          grade:raw.grade,feedback:raw.feedback,criteria:raw.criteria||[],
+          strengths:raw.strengths||[],improvements:raw.improvements||[],
+          extractedText:raw.extractedText,correct:"-",wrong:"-",empty:"-",
+        });
+      }
+    }catch(e){setErr("Error: "+e.message);}
+    setProcessing(false);
+  };
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:18}}>
+
+      {/* Mode toggle */}
+      <div className="anim-fade-up stagger-1">
+        <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--dim)",
+          letterSpacing:".1em",marginBottom:8}}>MODE KOREKSI</div>
+        <div className="toggle-wrap">
+          {[["omr","🔵 Pilihan Ganda (OMR)"],["essay","📝 Esai / Uraian"]].map(([m,l])=>(
+            <button key={m} className={`toggle-item ${mode===m?"on":""}`} onClick={()=>setMode(m)}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Essay rubric */}
+      {mode==="essay"&&(
+        <div className="anim-fade-up stagger-2">
+          <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--dim)",
+            letterSpacing:".1em",marginBottom:8}}>RUBRIK PENILAIAN</div>
+          <textarea className="field" value={rubric} onChange={e=>setRubric(e.target.value)}
+            placeholder="Deskripsikan kriteria penilaian..." rows={3}/>
+        </div>
+      )}
+
+      {/* Input toggle */}
+      <div className="anim-fade-up stagger-2">
+        <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--dim)",
+          letterSpacing:".1em",marginBottom:8}}>SUMBER GAMBAR</div>
+        <div className="toggle-wrap">
+          {[["camera","📷 Kamera Real-Time"],["upload","📂 Upload File"]].map(([m,l])=>(
+            <button key={m} className={`toggle-item ${inputType===m?"on":""}`}
+              onClick={()=>setInputType(m)}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Input area */}
+      <div className="anim-fade-up stagger-3">
+        {inputType==="camera"
+          ? <CameraView onCapture={img=>setImage(img)}/>
+          : <FileUpload onUpload={img=>setImage(img)}/>
+        }
+      </div>
+
+      {/* Error */}
+      {err&&(
+        <div style={{padding:"12px 16px",borderRadius:12,
+          background:"rgba(255,77,106,.08)",border:"1px solid rgba(255,77,106,.25)",
+          fontFamily:"var(--font-mono)",fontSize:12,color:"var(--danger)"}}>
+          ⚠ {err}
+        </div>
+      )}
+
+      {/* Analyze button */}
+      {image&&(
+        <div className="anim-fade-up stagger-4">
+          <button className="btn-neon" onClick={analyze} disabled={processing}
+            style={{width:"100%",padding:"17px",fontSize:16,
+              boxShadow:processing?"none":"0 0 40px rgba(0,229,160,.3)"}}>
+            {processing?(
+              <><span className="spin" style={{marginRight:10,display:"inline-block"}}>⚙</span>
+              Menganalisis dengan Claude AI...</>
+            ):(
+              <>🤖 &nbsp; Analisis Sekarang</>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── PAGE: KUNCI JAWABAN ── */
+function PageKunci({ answerKey, setAnswerKey, totalQ, setTotalQ }) {
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:18}}>
+      {/* Header card */}
+      <div className="glass anim-fade-up stagger-1"
+        style={{padding:"18px 20px",
+          background:"linear-gradient(135deg,rgba(0,229,160,.07),rgba(0,196,255,.04))"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
+          <div>
+            <div style={{fontFamily:"var(--font-display)",fontWeight:700,fontSize:16}}>
+              Kunci Jawaban
+            </div>
+            <div style={{fontFamily:"var(--font-mono)",fontSize:11,color:"var(--muted)",marginTop:4}}>
+              {Object.keys(answerKey).length} soal dikonfigurasi
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <input type="number" min={1} max={100} value={totalQ}
+              onChange={e=>setTotalQ(Math.max(1,Math.min(100,+e.target.value)))}
+              className="field"
+              style={{width:72,textAlign:"center",fontFamily:"var(--font-mono)",
+                fontSize:18,fontWeight:700,padding:"8px 6px"}}/>
+            <span style={{fontFamily:"var(--font-mono)",fontSize:11,color:"var(--dim)"}}>soal</span>
+          </div>
+        </div>
+
+        {/* Quick fill */}
+        <div style={{display:"flex",gap:6,marginTop:14,flexWrap:"wrap"}}>
+          {CHOICES.map(c=>(
+            <button key={c} className="btn-ghost"
+              style={{padding:"6px 14px",borderRadius:8,fontSize:12,
+                fontFamily:"var(--font-mono)",fontWeight:600}}
+              onClick={()=>{
+                const nk={};
+                for(let i=1;i<=totalQ;i++) nk[i]=c;
+                setAnswerKey(nk);
+              }}>
+              Isi semua → {c}
+            </button>
+          ))}
+          <button className="btn-ghost"
+            style={{padding:"6px 14px",borderRadius:8,fontSize:12}}
+            onClick={()=>{
+              const nk={};
+              for(let i=1;i<=totalQ;i++) nk[i]=CHOICES[(i-1)%5];
+              setAnswerKey(nk);
+            }}>
+            Acak A-E
+          </button>
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div className="anim-fade-up stagger-2"
+        style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:8}}>
+        {Array.from({length:totalQ},(_,i)=>i+1).map(n=>(
+          <div key={n} className="glass"
+            style={{padding:"10px 10px 12px",borderRadius:14,
+              background: answerKey[n]?"rgba(0,229,160,.05)":"var(--surface)"}}>
+            <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--dim)",
+              textAlign:"center",marginBottom:8}}>
+              #{n}
+            </div>
+            <div style={{display:"flex",gap:4,justifyContent:"center",flexWrap:"wrap"}}>
+              {CHOICES.map(c=>(
+                <button key={c}
+                  className={`ans-btn ${answerKey[n]===c?"chosen":""}`}
+                  onClick={()=>setAnswerKey(k=>({...k,[n]:c}))}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── PAGE: HASIL ── */
+function PageHasil({ result, onSave }) {
+  const [name,setName]=useState("");
+  const [saved,setSaved]=useState(false);
+  const [showText,setShowText]=useState(false);
+
+  if(!result) return (
+    <div style={{textAlign:"center",padding:"60px 20px",display:"flex",
+      flexDirection:"column",alignItems:"center",gap:16}}>
+      <div style={{fontSize:64,lineHeight:1}}>📋</div>
+      <div style={{fontFamily:"var(--font-display)",fontWeight:700,fontSize:18,
+        color:"var(--muted)"}}>Belum Ada Hasil</div>
+      <div style={{fontFamily:"var(--font-mono)",fontSize:12,color:"var(--dim)"}}>
+        Scan lembar jawaban di tab Scanner terlebih dahulu
+      </div>
+    </div>
+  );
+
+  const sc = result.score||0;
+  const col = sc>=90?"#00e5a0":sc>=80?"#a3ff5a":sc>=70?"#ffb830":sc>=60?"#ff8c42":"#ff4d6a";
+  const letter = scoreLetter(sc);
+  const tag = sc>=85?"LULUS ✓":sc>=70?"CUKUP":"PERLU PERBAIKAN";
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+      {/* Hero score card */}
+      <div className="glass anim-fade-up stagger-1"
+        style={{padding:"24px",
+          background:`linear-gradient(135deg,rgba(${sc>=70?"0,229,160":"255,77,106"},.07),rgba(0,196,255,.03))`,
+          borderColor:`rgba(${sc>=70?"0,229,160":"255,77,106"},.2)`}}>
+        <div style={{display:"flex",alignItems:"center",gap:20}}>
+          <ScoreDonut score={sc}/>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"var(--font-mono)",fontSize:11,
+              color:"var(--dim)",letterSpacing:".1em",marginBottom:4}}>NILAI AKHIR</div>
+            <div style={{fontFamily:"var(--font-mono)",fontWeight:700,fontSize:48,
+              lineHeight:1,color:col,
+              textShadow:`0 0 20px ${col}66`,
+              animation:"countUp .6s cubic-bezier(.22,.68,0,1.2) both"}}>
+              {sc}
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:8,alignItems:"center"}}>
+              <span style={{
+                fontFamily:"var(--font-mono)",fontWeight:700,fontSize:13,
+                background:`rgba(${sc>=70?"0,229,160":"255,77,106"},.12)`,
+                border:`1px solid rgba(${sc>=70?"0,229,160":"255,77,106"},.3)`,
+                color:col,padding:"3px 10px",borderRadius:20,
+              }}>{letter}</span>
+              <span style={{fontFamily:"var(--font-mono)",fontSize:11,color:"var(--dim)"}}>
+                {tag}
+              </span>
+            </div>
+            {result.confidence&&(
+              <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--dim)",marginTop:6}}>
+                Akurasi AI: {Math.round(result.confidence*100)}% · Kualitas: {result.imageQuality||"-"}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Stats row */}
+        {result.type==="omr"&&(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginTop:18}}>
+            {[
+              {l:"Benar",v:result.correct,c:"#00e5a0"},
+              {l:"Salah",v:result.wrong,c:"#ff4d6a"},
+              {l:"Kosong",v:result.empty,c:"#ffb830"},
+            ].map(({l,v,c})=>(
+              <div key={l} style={{
+                borderRadius:14,padding:"14px 10px",textAlign:"center",
+                background:`rgba(${c==="#00e5a0"?"0,229,160":c==="#ff4d6a"?"255,77,106":"255,184,48"},.07)`,
+                border:`1px solid rgba(${c==="#00e5a0"?"0,229,160":c==="#ff4d6a"?"255,77,106":"255,184,48"},.15)`,
+              }}>
+                <div style={{fontFamily:"var(--font-mono)",fontWeight:700,
+                  fontSize:28,color:c,lineHeight:1}}>{v}</div>
+                <div style={{fontFamily:"var(--font-mono)",fontSize:10,
+                  color:"var(--dim)",marginTop:4}}>{l}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Detail jawaban OMR */}
+      {result.type==="omr"&&result.details&&(
+        <div className="glass anim-fade-up stagger-2" style={{padding:16}}>
+          <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--dim)",
+            letterSpacing:".1em",marginBottom:12}}>DETAIL JAWABAN</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(52px,1fr))",gap:6}}>
+            {Object.entries(result.details).map(([num,d])=>(
+              <div key={num} style={{
+                borderRadius:10,padding:"8px 4px",textAlign:"center",
+                background: d.status==="correct"?"rgba(0,229,160,.08)":
+                            d.status==="wrong"?"rgba(255,77,106,.08)":"rgba(255,255,255,.04)",
+                border:`1px solid ${d.status==="correct"?"rgba(0,229,160,.25)":
+                                    d.status==="wrong"?"rgba(255,77,106,.25)":"rgba(255,255,255,.08)"}`,
+              }}>
+                <div style={{fontFamily:"var(--font-mono)",fontSize:9,color:"var(--dim)"}}>{num}</div>
+                <div style={{fontFamily:"var(--font-mono)",fontWeight:700,fontSize:15,marginTop:2,
+                  color:d.status==="correct"?"#00e5a0":d.status==="wrong"?"#ff4d6a":"rgba(255,255,255,.25)"}}>
+                  {d.given}
+                </div>
+                {d.status==="wrong"&&(
+                  <div style={{fontFamily:"var(--font-mono)",fontSize:9,
+                    color:"rgba(255,255,255,.3)"}}>{d.key}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Essay result */}
+      {result.type==="essay"&&(
+        <>
+          {/* Criteria bars */}
+          {result.criteria?.length>0&&(
+            <div className="glass anim-fade-up stagger-2" style={{padding:16}}>
+              <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--dim)",
+                letterSpacing:".1em",marginBottom:14}}>KRITERIA PENILAIAN</div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {result.criteria.map((c,i)=>{
+                  const pct=(c.score/c.max)*100;
+                  return(
+                    <div key={i}>
+                      <div style={{display:"flex",justifyContent:"space-between",
+                        marginBottom:5}}>
+                        <span style={{fontFamily:"var(--font-display)",fontWeight:600,
+                          fontSize:13}}>{c.name}</span>
+                        <span style={{fontFamily:"var(--font-mono)",fontSize:12,
+                          color:"var(--accent)"}}>{c.score}/{c.max}</span>
+                      </div>
+                      <div style={{height:6,borderRadius:6,
+                        background:"rgba(255,255,255,.06)"}}>
+                        <div style={{height:"100%",borderRadius:6,
+                          background:`linear-gradient(90deg,#00e5a0,#00c4ff)`,
+                          width:`${pct}%`,
+                          boxShadow:"0 0 8px rgba(0,229,160,.4)",
+                          transition:"width .8s ease"}}/>
+                      </div>
+                      {c.comment&&(
+                        <div style={{fontFamily:"var(--font-mono)",fontSize:10,
+                          color:"var(--dim)",marginTop:4}}>{c.comment}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Feedback */}
+          {result.feedback&&(
+            <div className="glass anim-fade-up stagger-3"
+              style={{padding:16,borderColor:"rgba(0,196,255,.2)",
+                background:"rgba(0,196,255,.04)"}}>
+              <div style={{fontFamily:"var(--font-mono)",fontSize:10,
+                color:"var(--accent2)",letterSpacing:".1em",marginBottom:10}}>FEEDBACK AI</div>
+              <p style={{fontFamily:"var(--font-display)",fontSize:13,
+                color:"var(--muted)",lineHeight:1.7}}>{result.feedback}</p>
+
+              {result.strengths?.length>0&&(
+                <div style={{marginTop:12}}>
+                  <div style={{fontFamily:"var(--font-mono)",fontSize:10,
+                    color:"var(--accent)",marginBottom:6}}>✦ KELEBIHAN</div>
+                  {result.strengths.map((s,i)=>(
+                    <div key={i} style={{fontFamily:"var(--font-display)",fontSize:12,
+                      color:"var(--muted)",marginBottom:3}}>• {s}</div>
+                  ))}
+                </div>
+              )}
+              {result.improvements?.length>0&&(
+                <div style={{marginTop:10}}>
+                  <div style={{fontFamily:"var(--font-mono)",fontSize:10,
+                    color:"var(--warn)",marginBottom:6}}>⚑ SARAN PERBAIKAN</div>
+                  {result.improvements.map((s,i)=>(
+                    <div key={i} style={{fontFamily:"var(--font-display)",fontSize:12,
+                      color:"var(--muted)",marginBottom:3}}>• {s}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Extracted text toggle */}
+          {result.extractedText&&(
+            <div className="glass anim-fade-up stagger-4" style={{padding:14}}>
+              <button className="btn-ghost"
+                style={{padding:"7px 14px",borderRadius:8,fontSize:12,width:"100%"}}
+                onClick={()=>setShowText(x=>!x)}>
+                {showText?"▲ Sembunyikan":"▼ Lihat Teks Terdeteksi"}
+              </button>
+              {showText&&(
+                <div style={{marginTop:12,fontFamily:"var(--font-mono)",fontSize:11,
+                  color:"var(--muted)",lineHeight:1.8,
+                  background:"rgba(0,0,0,.3)",padding:12,borderRadius:10}}>
+                  {result.extractedText}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Save */}
+      <div className="glass anim-fade-up stagger-4"
+        style={{padding:16,display:"flex",flexDirection:"column",gap:10}}>
+        <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--dim)",
+          letterSpacing:".1em"}}>SIMPAN KE RIWAYAT</div>
+        {!saved?(
+          <div style={{display:"flex",gap:10}}>
+            <input className="field" value={name} onChange={e=>setName(e.target.value)}
+              placeholder="Nama siswa..." style={{flex:1}}/>
+            <button className="btn-neon"
+              style={{padding:"11px 22px",flexShrink:0}}
+              onClick={()=>{
+                if(!name.trim()){alert("Masukkan nama siswa.");return;}
+                onSave({...result,name,
+                  date:new Date().toLocaleDateString("id-ID",{day:"2-digit",month:"short"}),
+                  id:Date.now()});
+                setSaved(true);
+              }}>
+              Simpan
+            </button>
+          </div>
+        ):(
+          <div style={{padding:"10px 14px",borderRadius:12,
+            background:"rgba(0,229,160,.08)",border:"1px solid rgba(0,229,160,.2)",
+            fontFamily:"var(--font-mono)",fontSize:12,color:"var(--accent)"}}>
+            ✓ Tersimpan ke Dashboard
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── PAGE: DASHBOARD ── */
+function PageDashboard({ history }) {
+  const all = [...SAMPLE_DATA,...history].sort((a,b)=>b.score-a.score);
+  const avg = all.length?Math.round(all.reduce((s,x)=>s+x.score,0)/all.length):0;
+  const pass = all.filter(x=>x.score>=70).length;
+
+  const dist=[
+    {r:"A+ (≥90)", n:all.filter(x=>x.score>=90).length, c:"#00e5a0"},
+    {r:"A (80-89)", n:all.filter(x=>x.score>=80&&x.score<90).length, c:"#a3ff5a"},
+    {r:"B (70-79)", n:all.filter(x=>x.score>=70&&x.score<80).length, c:"#ffb830"},
+    {r:"C (60-69)", n:all.filter(x=>x.score>=60&&x.score<70).length, c:"#ff8c42"},
+    {r:"D (<60)",   n:all.filter(x=>x.score<60).length, c:"#ff4d6a"},
+  ];
+  const maxN=Math.max(...dist.map(d=>d.n),1);
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+      {/* Stat cards */}
+      <div className="anim-fade-up stagger-1"
+        style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {[
+          {l:"Total Siswa",v:all.length,icon:"◉",c:"#00c4ff"},
+          {l:"Rata-rata",  v:avg,       icon:"◈",c:"#00e5a0"},
+          {l:"Tertinggi",  v:all[0]?.score||0,icon:"✦",c:"#a3ff5a"},
+          {l:"Lulus (≥70)",v:`${pass}/${all.length}`,icon:"▲",c:"#ffb830"},
+        ].map(({l,v,icon,c})=>(
+          <div key={l} className="glass"
+            style={{padding:"16px",background:`rgba(${
+              c=="#00c4ff"?"0,196,255":c=="#00e5a0"?"0,229,160":
+              c=="#a3ff5a"?"163,255,90":"255,184,48"},.04)`}}>
+            <div style={{fontFamily:"var(--font-mono)",fontSize:16,color:c,
+              marginBottom:6}}>{icon}</div>
+            <div style={{fontFamily:"var(--font-mono)",fontWeight:700,
+              fontSize:28,color:"white",lineHeight:1}}>{v}</div>
+            <div style={{fontFamily:"var(--font-mono)",fontSize:10,
+              color:"var(--dim)",marginTop:5}}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Distribution */}
+      <div className="glass anim-fade-up stagger-2" style={{padding:18}}>
+        <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--dim)",
+          letterSpacing:".1em",marginBottom:14}}>DISTRIBUSI NILAI</div>
+        <div style={{display:"flex",flexDirection:"column",gap:9}}>
+          {dist.map(({r,n,c})=>(
+            <div key={r} style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{fontFamily:"var(--font-mono)",fontSize:10,
+                color:"var(--dim)",width:72,flexShrink:0}}>{r}</div>
+              <div style={{flex:1,height:22,borderRadius:8,
+                background:"rgba(255,255,255,.04)",overflow:"hidden"}}>
+                <div style={{
+                  height:"100%",borderRadius:8,
+                  background:`linear-gradient(90deg,${c},${c}bb)`,
+                  width:`${(n/maxN)*100}%`,minWidth:n>0?28:0,
+                  boxShadow:`0 0 12px ${c}44`,
+                  display:"flex",alignItems:"center",
+                  paddingLeft:n>0?8:0,
+                  transition:"width 1s ease",
+                  fontFamily:"var(--font-mono)",fontSize:11,
+                  fontWeight:700,color:"#050810",
+                }}>
+                  {n>0?n:""}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Leaderboard */}
+      <div className="anim-fade-up stagger-3">
+        <div style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--dim)",
+          letterSpacing:".1em",marginBottom:10}}>RANKING SISWA</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {all.map((s,i)=>{
+            const c=s.score>=90?"#00e5a0":s.score>=80?"#a3ff5a":s.score>=70?"#ffb830":s.score>=60?"#ff8c42":"#ff4d6a";
+            const medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":null;
+            return(
+              <div key={s.id||i} className="glass"
+                style={{padding:"13px 16px",display:"flex",alignItems:"center",
+                  gap:12,borderRadius:16,
+                  background:i<3?"rgba(255,255,255,.05)":"var(--surface)",
+                  borderColor:i===0?"rgba(0,229,160,.2)":"var(--border)"}}>
+                <div style={{fontFamily:"var(--font-mono)",fontWeight:700,
+                  fontSize:i<3?18:13,width:24,textAlign:"center",
+                  color:i<3?c:"var(--dim)"}}>
+                  {medal||i+1}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:"var(--font-display)",fontWeight:600,
+                    fontSize:14,whiteSpace:"nowrap",overflow:"hidden",
+                    textOverflow:"ellipsis"}}>{s.name}</div>
+                  <div style={{fontFamily:"var(--font-mono)",fontSize:10,
+                    color:"var(--dim)",marginTop:2}}>{s.date}</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontFamily:"var(--font-mono)",fontWeight:700,
+                    fontSize:22,color:c,
+                    textShadow:`0 0 12px ${c}55`}}>{s.score}</div>
+                  <div style={{fontFamily:"var(--font-mono)",fontSize:10,
+                    color:"var(--dim)",marginTop:1}}>
+                    {s.correct!==undefined&&`${s.correct}B `}{s.wrong!==undefined&&`${s.wrong}S`}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ROOT APP
+═══════════════════════════════════════════════════════════════ */
+export default function App() {
+  const [tab,setTab]         = useState(0);
+  const [result,setResult]   = useState(null);
+  const [history,setHistory] = useState([]);
+  const [totalQ,setTotalQ]   = useState(20);
+  const [answerKey,setAnswerKey] = useState(()=>{
+    const k={};
+    for(let i=1;i<=20;i++) k[i]="A";
+    return k;
+  });
+
+  // Sync key to totalQ
+  useEffect(()=>{
+    setAnswerKey(k=>{
+      const nk={};
+      for(let i=1;i<=totalQ;i++) nk[i]=k[i]||"A";
+      return nk;
+    });
+  },[totalQ]);
+
+  const handleResult=(r)=>{ setResult(r); setTab(2); };
+  const handleSave=(r)=>{ setHistory(h=>[r,...h]); };
+
+  return (
+    <>
+      <style>{GLOBAL_CSS}</style>
+      <BgGrid/>
+      <div style={{position:"relative",zIndex:1,minHeight:"100vh"}}>
+        <Header active={tab} setActive={setTab}/>
+        <main style={{maxWidth:680,margin:"0 auto",padding:"20px 16px 80px"}}>
+          {tab===0&&<PageScanner answerKey={answerKey} onResult={handleResult}/>}
+          {tab===1&&<PageKunci answerKey={answerKey} setAnswerKey={setAnswerKey}
+            totalQ={totalQ} setTotalQ={setTotalQ}/>}
+          {tab===2&&<PageHasil result={result} onSave={handleSave}/>}
+          {tab===3&&<PageDashboard history={history}/>}
+        </main>
+      </div>
+    </>
+  );
+}
